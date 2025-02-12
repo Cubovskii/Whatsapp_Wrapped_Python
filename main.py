@@ -1,7 +1,7 @@
 from tkinter.filedialog import askopenfilename
 import os
 from emoji import EMOJI_DATA
-from datetime import date, datetime, time
+from datetime import datetime, timedelta
 from time import time
 
 filetypes = [
@@ -11,7 +11,7 @@ filetypes = [
 now_path = os.path.dirname(os.path.realpath(__file__))
 filepath = askopenfilename(initialdir = now_path, filetypes = filetypes)
 file_name = filepath.split('/')[-1][:-3]
-print(f"Analisi della chat WhatsApp {file_name[18:-1]}")
+print(f"Analisi della chat WhatsApp {file_name[18:-1]}:\n")
 it = time()
 
 with open(filepath, 'r', encoding='utf-8') as file:
@@ -78,8 +78,6 @@ class Message:
         month = int(date1.split('/')[1])
         year = int(date1.split('/')[2]) + 2000
 
-        self.date = date(year, month, day)
-        self.time = time(hours, minutes)
         self.datetime = datetime(year, month, day, hours, minutes)
 
         self.user: str = user
@@ -164,6 +162,12 @@ def messagefilter(inputlist: list[Message], keytype: str = 'txt', count: bool = 
     else:
         return output
 
+
+tfgc: timedelta = datetime.now() - mlist[0].datetime
+'''Time from group creation'''
+mmpd: int = len(mlist) / tfgc.days
+'''Median messages per day'''
+
 editedm: list[Message] = []
 for m in mlist:
     if m.edited:
@@ -192,10 +196,25 @@ for m in messagefilter(mlist):
         else:
             words[word] += 1
 
+dates1: list = [datetime.today().date()]
+for m in reversed(mlist):
+    date1 = m.datetime.date()
+    if date1 not in dates1:
+        dates1.append(date1)
+
+streak = 0
+for n, date1 in enumerate(dates1):
+    try:
+        if date1 - timedelta(1) == dates1[n+1]:
+            streak += 1
+        else:
+            break
+    except IndexError:
+        break
 
 print(f"Totale messaggi: {len(mlist)}")
-print(f'Media messaggi: {'placeholder'}') #####################################
-print(f'Data primo messaggio: {mlist[0].datetime}')
+print(f'Media messaggi per giorno: {mmpd}')
+print(f'Data primo messaggio: {mlist[0].datetime} ({tfgc.days} giorni fa)\n')
 
 print(f'Messaggi testuali: {len(textm)}')
 print(f'Messaggi modificati: {len(editedm)}')
@@ -206,8 +225,7 @@ print(f"Vocali a una solo visualizzazione: {messagefilter(mlist, 'svvm', True)}"
 print(f"Sondaggi: {messagefilter(mlist, 'poll', True)}")
 print(f"Eventi: {messagefilter(mlist, 'event', True)}")
 print(f"Sconosciuto: {messagefilter(mlist, 'error', True)}")
-print(f'Messaggi di sistema: {messagefilter(mlist, 'sys', True)}')
-print()
+print(f'Messaggi di sistema: {messagefilter(mlist, 'sys', True)}\n')
 
 print("Messaggi per utente:")
 [print('   ', k, ':', v) for k, v in dict_sorter(users).items() if k != '$system$']
@@ -220,8 +238,10 @@ print()
 
 print("Parole piu usate (tutte):")
 [print(f"    {word} : {n}") for word, n in dict(list(dict_sorter(words).items())[:10]).items()]
+print()
 
-print(f"Tempo necessario per l'analisi: {time() - it}")
+print(f'Chat Streak: {streak} 🔥')
+print(f"Durata analisi: {time() - it} secondi")
 while 1:
     r = int(input()) - 1
 
