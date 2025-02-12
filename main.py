@@ -6,39 +6,90 @@ from time import time
 import zipfile
 from shutil import rmtree
 
-filetypes: list[tuple[str, str | list[str] | tuple[str, ...]]] = [
-    ("Whatsapp chats", ("*.txt", "*.zip"))
-]
 
-now_path: str = os.path.dirname(os.path.realpath(__file__))
-filepath: str = askopenfilename(initialdir = now_path, filetypes = filetypes)
-temp_path: str = rf'{now_path}\temp'
-is_zip: bool = False
+def menu(question: str,
+         options: list[str | int | float],
+         errortxt: str = "Input non valido!",
+         selectiontxt: str = "Scrivi la tua scelta qui: ",
+         use_index: bool = True,
+         use_options: bool = True,
+         return_index: bool = False) -> str | int:
+    if not (use_index or use_options):
+        raise ValueError("Please activate one of the two options to scan the response!")
+    if not options:
+        raise ValueError("Options list can't be empty!")
+    while True:
+        print(question.capitalize())
+        for n, a in enumerate(options):
+            print(f'{n + 1}. {a.title()}' if use_index else a.title())
+        option = input(selectiontxt).lower().lstrip().rstrip()
+        if use_index:
+            try:
+                tmp = int(option)
+                if 1 <= tmp <= tmp + 1:
+                    option = options[int(option) - 1]
+                    if option in options:
+                        break
+            except ValueError:
+                pass
+            except IndexError:
+                pass
+        if option in options and use_options:
+            break
+        else:
+            print(errortxt.capitalize() + '\n')
+    if return_index:
+        return options.index(option)
+    else:
+        return option
 
-if filepath.endswith(".txt"):
-    file_name = filepath.split('/')[-1][:-4]
 
-elif filepath.endswith(".zip"):
-    is_zip = True
+choice = menu("Stai utilizzando un computer?", ["Si", "No"])
 
-    if os.path.exists(temp_path):
-        rmtree(temp_path)
-    os.makedirs(temp_path)
+if choice == "Si":
+    filetypes: list[tuple[str, str | list[str] | tuple[str, ...]]] = [
+        ("Whatsapp chats", ("*.txt", "*.zip"))
+    ]
 
-    with zipfile.ZipFile(filepath, 'r') as zip_ref:
-        zip_ref.extractall(temp_path)
+    now_path: str = os.path.dirname(os.path.realpath(__file__))
+    filepath: str = askopenfilename(initialdir = now_path, filetypes = filetypes)
+    temp_path: str = rf'{now_path}\temp'
+    is_zip: bool = False
 
-    file_name = filepath.split('/')[-1][:-4]
-    filepath = fr"{temp_path}\{file_name}.txt"
+    if filepath.endswith(".txt"):
+        file_name = filepath.split('/')[-1][:-4]
 
-else:
-    raise IOError("The selection got stopped.")
+    elif filepath.endswith(".zip"):
+        is_zip = True
 
-it = time()
+        if os.path.exists(temp_path):
+            rmtree(temp_path)
+        os.makedirs(temp_path)
 
-print(f"Analisi della chat WhatsApp {file_name[18:]}:\n")
-with open(filepath, 'r', encoding='utf-8') as file:
-    data_file = file.readlines()
+        with zipfile.ZipFile(filepath, 'r') as zip_ref:
+            zip_ref.extractall(temp_path)
+
+        file_name = filepath.split('/')[-1][:-4]
+        filepath = fr"{temp_path}\{file_name}.txt"
+
+    else:
+        raise IOError("The selection got stopped.")
+
+    it = time()
+
+    print(f"Analisi della chat WhatsApp {file_name[18:]}:\n")
+    with open(filepath, 'r', encoding='utf-8') as file:
+        data_file = file.readlines()
+
+    if is_zip:
+        if os.path.exists(temp_path):
+            rmtree(temp_path)
+
+elif choice == "No":
+    data = input("Incolla il contenuto del file di testo:\n")
+    data_file = data.splitlines()
+    it = time()
+    print(f"Analisi della chat WhatsApp:\n")
 
 
 class Message:
@@ -236,7 +287,3 @@ print()
 
 print(f'Chat Streak: {streak} 🔥')
 print(f"Durata analisi: {time() - it} secondi")
-
-if is_zip:
-    if os.path.exists(temp_path):
-        rmtree(temp_path)
