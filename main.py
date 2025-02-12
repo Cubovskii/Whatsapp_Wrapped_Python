@@ -3,49 +3,42 @@ import os
 from emoji import EMOJI_DATA
 from datetime import datetime, timedelta
 from time import time
+import zipfile
+from shutil import rmtree
 
-filetypes = [
-    ("Text files", "*.txt")
+filetypes: list[tuple[str, str | list[str] | tuple[str, ...]]] = [
+    ("Whatsapp chats", ("*.txt", "*.zip"))
 ]
 
-now_path = os.path.dirname(os.path.realpath(__file__))
-filepath = askopenfilename(initialdir = now_path, filetypes = filetypes)
-file_name = filepath.split('/')[-1][:-3]
-print(f"Analisi della chat WhatsApp {file_name[18:-1]}:\n")
+now_path: str = os.path.dirname(os.path.realpath(__file__))
+filepath: str = askopenfilename(initialdir = now_path, filetypes = filetypes)
+temp_path: str = rf'{now_path}\temp'
+is_zip: bool = False
+
+if filepath.endswith(".txt"):
+    file_name = filepath.split('/')[-1][:-4]
+
+elif filepath.endswith(".zip"):
+    is_zip = True
+
+    if os.path.exists(temp_path):
+        rmtree(temp_path)
+    os.makedirs(temp_path)
+
+    with zipfile.ZipFile(filepath, 'r') as zip_ref:
+        zip_ref.extractall(temp_path)
+
+    file_name = filepath.split('/')[-1][:-4]
+    filepath = fr"{temp_path}\{file_name}.txt"
+
+else:
+    raise IOError("The selection got stopped.")
+
 it = time()
 
+print(f"Analisi della chat WhatsApp {file_name[18:]}:\n")
 with open(filepath, 'r', encoding='utf-8') as file:
     data_file = file.readlines()
-
-
-def askforinput(question: str, *, error_txt: str = 'Invalid input!', output_type=str,
-                clear_spaces: bool = True, format_str: bool = False) -> str | int | float:
-    while 1:
-        i = str(input(question))
-
-        if clear_spaces:
-            i = i.lstrip().rstrip()
-
-        try:
-            i = float(i)
-            if output_type == float:
-                return i
-
-            tmp = int(i)
-            if tmp == i and output_type == int:
-                return tmp
-
-        except ValueError:
-            pass
-        if format_str:
-            try:
-                i = i.lower()
-            except ValueError:
-                pass
-        if output_type == str:
-            return str(i)
-
-        print(error_txt, '\n')
 
 
 class Message:
@@ -213,7 +206,8 @@ for n, date1 in enumerate(dates1):
         break
 
 print(f"Totale messaggi: {len(mlist)}")
-print(f'Media messaggi per giorno: {mmpd}')
+print(f'Media messaggi per giorno: {mmpd:.2f}')
+
 print(f'Data primo messaggio: {mlist[0].datetime} ({tfgc.days} giorni fa)\n')
 
 print(f'Messaggi testuali: {len(textm)}')
@@ -242,7 +236,7 @@ print()
 
 print(f'Chat Streak: {streak} 🔥')
 print(f"Durata analisi: {time() - it} secondi")
-while 1:
-    r = int(input()) - 1
 
-    print(f'Index: {r} \n{mlist[r]}')
+if is_zip:
+    if os.path.exists(temp_path):
+        rmtree(temp_path)
