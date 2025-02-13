@@ -1,14 +1,10 @@
-from tkinter.filedialog import askopenfilename
-import os
 from emoji import EMOJI_DATA
 from datetime import datetime, timedelta
 from time import time
-import zipfile
-from shutil import rmtree
 
 
 def menu(question: str,
-         options: list[str | int | float],
+         options: list[str | int],
          errortxt: str = "Input non valido!",
          selectiontxt: str = "Scrivi la tua scelta qui: ",
          use_index: bool = True,
@@ -18,11 +14,12 @@ def menu(question: str,
         raise ValueError("Please activate one of the two options to scan the response!")
     if not options:
         raise ValueError("Options list can't be empty!")
+    options = [str(o).lower() for o in options]
     while True:
         print(question.capitalize())
         for n, a in enumerate(options):
             print(f'{n + 1}. {a.title()}' if use_index else a.title())
-        option = input(selectiontxt).lower().lstrip().rstrip()
+        option = input(selectiontxt).lower().strip()
         if use_index:
             try:
                 tmp = int(option)
@@ -34,19 +31,38 @@ def menu(question: str,
                 pass
             except IndexError:
                 pass
-        if option in options and use_options:
+        if (option in [o.lower() for o in options] or option in [o.capitalize() for o in options]) and use_options:
             break
         else:
             print(errortxt.capitalize() + '\n')
+    print()
     if return_index:
         return options.index(option)
     else:
         return option
 
 
-choice = menu("Stai utilizzando un computer?", ["Si", "No"])
+def iterinput(prompt: str, stop_val: str | list[str]):
+    out = ""
+    print(prompt, end = "")
+    if type(stop_val) is not list:
+        stop_val = [stop_val]
+    while True:
+        i = input()
+        if i.strip() in stop_val:
+            break
+        out += f"{i}\n"
+    return out
 
-if choice == "Si":
+
+data_file: str = ''
+file_name: str = ''
+using_pc = bool(menu("Stai utilizzando un computer?", ["si", "no"], return_index = True)) ^ True
+if using_pc:
+    from tkinter.filedialog import askopenfilename
+    import zipfile
+    from shutil import rmtree
+    import os
     filetypes: list[tuple[str, str | list[str] | tuple[str, ...]]] = [
         ("Whatsapp chats", ("*.txt", "*.zip"))
     ]
@@ -75,9 +91,6 @@ if choice == "Si":
     else:
         raise IOError("The selection got stopped.")
 
-    it = time()
-
-    print(f"Analisi della chat WhatsApp {file_name[18:]}:\n")
     with open(filepath, 'r', encoding='utf-8') as file:
         data_file = file.readlines()
 
@@ -85,11 +98,17 @@ if choice == "Si":
         if os.path.exists(temp_path):
             rmtree(temp_path)
 
-elif choice == "No":
-    data = input("Incolla il contenuto del file di testo:\n")
-    data_file = data.splitlines()
-    it = time()
-    print(f"Analisi della chat WhatsApp:\n")
+    print(f"File selezionato: {filepath}\n")
+
+elif not using_pc:
+    data_file = iterinput(
+        "Incolla il contenuto del file di testo e poi inserisci \"continua\" per continuare:\n",
+        ["Continua", "continua"]).splitlines(True)
+    print()
+
+analysis_lvl = menu("Seleziona il tipo di analisi che vuoi eseguire:",
+                    ["analisi superficiale", "analisi approfondita", "analisi completa"],
+                    return_index = True) + 1
 
 
 class Message:
@@ -173,6 +192,9 @@ class Message:
         return fr'{self.datetime} | {self.user} | {self.type} | {self.text} | Edited: {self.edited}'
 
 
+print(f"Analisi della chat WhatsApp {file_name[18:] if using_pc else ''}:\n")
+it = time()
+
 mlist: list[Message] = []
 
 for line in data_file[:]:
@@ -212,33 +234,47 @@ tfgc: timedelta = datetime.now() - mlist[0].datetime
 mmpd: int = len(mlist) / tfgc.days
 '''Median messages per day'''
 
+textm: list[Message] = []
 editedm: list[Message] = []
-for m in mlist:
-    if m.edited:
-        editedm.append(m)
-textm: list[Message] = messagefilter(mlist)
-
-
-def str_cleaner(string: str, chars: list[str]) -> str:
-    return "".join([x for x in string if x not in chars])
-
-
 words: dict[str, int] = {}
-chars_to_remove: list[str] = (
-    list('<>"*_-`<>?@,.=+!\'’;:{}[]()') +
-    list(EMOJI_DATA.keys()) +
-    [str(n) for n in range(10)]
-)
 
-for m in messagefilter(mlist):
-    for word in m.text.split():
-        word = str_cleaner(word.lower(), chars_to_remove)
-        if word == '':
-            continue
-        elif word not in words:
-            words[word] = 1
-        else:
-            words[word] += 1
+if analysis_lvl >= 2:
+    for m in mlist:
+        if m.edited:
+            editedm.append(m)
+    textm = messagefilter(mlist)
+
+
+if analysis_lvl >= 2:
+    if analysis_lvl == 2:
+        for m in messagefilter(mlist):
+            for word in m.text.split():
+                word = word.lower()
+                if word == '':
+                    continue
+                elif word not in words:
+                    words[word] = 1
+                else:
+                    words[word] += 1
+    else:
+        chars_to_remove: list[str] = (
+                list('<>"*_-`<>?@,.=+!\'’;:{}[]()') +
+                list(EMOJI_DATA.keys()) +
+                [str(n) for n in range(10)]
+        )
+
+        def str_cleaner(string: str, chars: list[str]) -> str:
+            return "".join([x for x in string if x not in chars])
+
+        for m in messagefilter(mlist):
+            for word in m.text.split():
+                word = str_cleaner(word.lower(), chars_to_remove)
+                if word == '':
+                    continue
+                elif word not in words:
+                    words[word] = 1
+                else:
+                    words[word] += 1
 
 dates1: list = [datetime.today().date()]
 for m in reversed(mlist):
@@ -257,33 +293,37 @@ for n, date1 in enumerate(dates1):
         break
 
 print(f"Totale messaggi: {len(mlist)}")
-print(f'Media messaggi per giorno: {mmpd:.2f}')
+print(f'Media messaggi per giorno: {mmpd if analysis_lvl <= 2 else f"{mmpd:0f}"}')
 
 print(f'Data primo messaggio: {mlist[0].datetime} ({tfgc.days} giorni fa)\n')
 
-print(f'Messaggi testuali: {len(textm)}')
-print(f'Messaggi modificati: {len(editedm)}')
-print(f'File multimediali: {messagefilter(mlist, 'media', True)}')
-print(f'Messaggi eliminati: {messagefilter(mlist, 'del', True)}')
-print(f'Messaggi a un unica visualizzazione: {messagefilter(mlist, 'svm', True)}')
-print(f"Vocali a una solo visualizzazione: {messagefilter(mlist, 'svvm', True)}")
-print(f"Sondaggi: {messagefilter(mlist, 'poll', True)}")
-print(f"Eventi: {messagefilter(mlist, 'event', True)}")
-print(f"Sconosciuto: {messagefilter(mlist, 'error', True)}")
-print(f'Messaggi di sistema: {messagefilter(mlist, 'sys', True)}\n')
+if analysis_lvl >= 2:
+    print(f'Messaggi testuali: {len(textm)}')
+    print(f'Messaggi modificati: {len(editedm)}')
+    print(f'File multimediali: {messagefilter(mlist, 'media', True)}')
+    print(f'Messaggi eliminati: {messagefilter(mlist, 'del', True)}')
+    print(f'Messaggi a un unica visualizzazione: {messagefilter(mlist, 'svm', True)}')
+    print(f"Vocali a una solo visualizzazione: {messagefilter(mlist, 'svvm', True)}")
+    print(f"Sondaggi: {messagefilter(mlist, 'poll', True)}")
+    print(f"Eventi: {messagefilter(mlist, 'event', True)}")
+    print(f"Sconosciuto: {messagefilter(mlist, 'error', True)}")
+    print(f'Messaggi di sistema: {messagefilter(mlist, 'sys', True)}')
+    print()
 
 print("Messaggi per utente:")
 [print('   ', k, ':', v) for k, v in dict_sorter(users).items() if k != '$system$']
 print()
 
-print("Parole piu usate (sopra i 3 caratteri):")
-words2 = {w : n for w, n in words.items() if len(list(w)) > 3}
-[print(f"    {word} : {n}") for word, n in dict(list(dict_sorter(words2).items())[:10]).items()]
-print()
+if analysis_lvl >= 2:
+    print("Parole piu usate (sopra i 3 caratteri):")
+    words2 = {w : n for w, n in words.items() if len(list(w)) > 3}
+    [print(f"    {word} : {n}") for word, n in dict(list(dict_sorter(words2).items())[:10]).items()]
+    print()
 
-print("Parole piu usate (tutte):")
-[print(f"    {word} : {n}") for word, n in dict(list(dict_sorter(words).items())[:10]).items()]
-print()
+    print("Parole piu usate (tutte):")
+    [print(f"    {word} : {n}") for word, n in dict(list(dict_sorter(words).items())[:10]).items()]
+    print()
+
 
 print(f'Chat Streak: {streak} 🔥')
 print(f"Durata analisi: {time() - it} secondi")
