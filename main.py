@@ -1,6 +1,6 @@
 from emoji import EMOJI_DATA
 from datetime import datetime, timedelta
-from time import time
+from time import time, sleep
 
 
 def menu(question: str,
@@ -55,6 +55,10 @@ def iterinput(prompt: str, stop_val: str | list[str]):
     return out
 
 
+def check(txt):
+    return txt[0:1].isdigit() and txt[2] == "/" and txt[16] == '-'
+
+
 data_file: str = ''
 file_name: str = ''
 using_pc = bool(menu("Stai utilizzando un computer?", ["si", "no"], return_index = True)) ^ True
@@ -66,45 +70,59 @@ if using_pc:
     filetypes: list[tuple[str, str | list[str] | tuple[str, ...]]] = [
         ("Whatsapp chats", ("*.txt", "*.zip"))
     ]
-
     now_path: str = os.path.dirname(os.path.realpath(__file__))
-    filepath: str = askopenfilename(initialdir = now_path, filetypes = filetypes)
     temp_path: str = rf'{now_path}\temp'
     is_zip: bool = False
 
-    if filepath.endswith(".txt"):
-        file_name = filepath.split('/')[-1][:-4]
+    while 1:
+        filepath: str = askopenfilename(initialdir = now_path, filetypes = filetypes)
 
-    elif filepath.endswith(".zip"):
-        is_zip = True
+        if filepath.endswith(".txt"):
+            file_name = filepath.split('/')[-1][:-4]
 
-        if os.path.exists(temp_path):
-            rmtree(temp_path)
-        os.makedirs(temp_path)
+        elif filepath.endswith(".zip"):
+            is_zip = True
 
-        with zipfile.ZipFile(filepath, 'r') as zip_ref:
-            zip_ref.extractall(temp_path)
+            if os.path.exists(temp_path):
+                rmtree(temp_path)
+            os.makedirs(temp_path)
 
-        file_name = filepath.split('/')[-1][:-4]
-        filepath = fr"{temp_path}\{file_name}.txt"
+            with zipfile.ZipFile(filepath, 'r') as zip_ref:
+                zip_ref.extractall(temp_path)
 
-    else:
-        raise IOError("The selection got stopped.")
+            file_name = filepath.split('/')[-1][:-4]
+            filepath = fr"{temp_path}\{file_name}.txt"
 
-    with open(filepath, 'r', encoding='utf-8') as file:
-        data_file = file.readlines()
+        else:
+            raise IOError("The selection got stopped.")
 
-    if is_zip:
-        if os.path.exists(temp_path):
-            rmtree(temp_path)
+        with open(filepath, 'r', encoding='utf-8') as file:
+            data_file = file.readlines()
+
+        if is_zip:
+            if os.path.exists(temp_path):
+                rmtree(temp_path)
+
+        if check(data_file[0]):
+            break
+        else:
+            print("File selezionato non risulta essere una chat Whatsapp, si prega di riprovare.\n")
+            sleep(1)
 
     print(f"File selezionato: {filepath}\n")
 
 elif not using_pc:
-    data_file = iterinput(
-        "Incolla il contenuto del file di testo e poi inserisci \"continua\" per continuare:\n",
-        ["Continua", "continua"]).splitlines(True)
-    print()
+    while True:
+        data_file = iterinput(
+            "Incolla il contenuto del file di testo e poi inserisci \"continua\" per continuare:\n",
+            ["Continua", "continua"]).splitlines(True)
+        print()
+
+        if check(data_file[0]):
+            break
+        else:
+            print("File incollato non risulta essere una chat Whatsapp, si prega di riprovare.\n")
+            sleep(1)
 
 analysis_lvl = menu("Seleziona il tipo di analisi che vuoi eseguire:",
                     ["analisi superficiale", "analisi approfondita", "analisi completa"],
@@ -198,10 +216,10 @@ it = time()
 mlist: list[Message] = []
 
 for line in data_file[:]:
-    check = not line[0:1].isdigit()
+
     if len(list(line)) < 17:
         mlist[-1].append_text(line)
-    elif check or line[2] != "/" or line[16] != '-':
+    elif not check(line):
         mlist[-1].append_text(line)
     else:
         mlist.append(Message(line))
